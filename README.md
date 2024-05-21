@@ -11,3 +11,7 @@ typedef struct msg{
     double time;
     char frase[1000];
 }msg;
+
+per compilare: make
+per eseguire il server: ./server
+per eseguire i clinet fare n volte: ./clinet
