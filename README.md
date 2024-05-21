@@ -1,5 +1,5 @@
-# ProjectReti
-FAST TYPE
+# FAST TYPE
+
 
 Scambio di messaggi tramite socket
 Il server accetta coppie di client e li mette in una partita: game(client1,client2)
