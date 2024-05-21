@@ -4,12 +4,14 @@ The server accepts pairs of clients (max 5 couple) and initializes the connectio
 
 The data exchange between client and server occurs through the following msg structure:
 
+```{c}
 typedef struct msg{
     char payload[1000];
     int flagReady;
     double time;
     char frase[1000];
 }msg;
+```
 
 game: (form the point of view of the server)
 The client creates a new process using fork. Both the parent and child processes wait with a recv to check if both clients are ready.
