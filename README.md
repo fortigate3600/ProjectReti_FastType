@@ -13,5 +13,7 @@ typedef struct msg{
 }msg;
 
 per compilare: make
+
 per eseguire il server: ./server
+
 per eseguire i clinet fare n volte: ./clinet
