@@ -14,15 +14,16 @@
 #include <time.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <sys/time.h>
 
 #include "common.h"
 
 char * getFrase(){
 
-    srand(time(NULL));//variabile causale basata sul tempo cosi diversa ogni volta
-    int numeroCasuale = rand() % 17 + 1;//numero casuale da 1 a 17 (il numero delle frasi possibili)
+    srand(time(NULL));//random variable time based
+    int numeroCasuale = rand() % 17 + 1;
 
-    //vado a prendere la frase numero #
+    
     FILE* file = fopen("frasi.txt", "r");
     if(file==NULL) handle_error("errore aperture file");
     char line[1000];
@@ -34,10 +35,10 @@ char * getFrase(){
         }
     }
     fclose(file);
-    return strdup(line);//se per qualche motivo esco dal ciclo passo comuque l'ultima della lista per evitare errori
+    return strdup(line);//default case, error avoidance
 }
 
-void game(int client1, int client2, int cont) {//il cont sono il num di game per non stampare la stessa frase
+void game(int client1, int client2, int cont) {//cont is the current connection
     int ret;
     pid_t pid;
     msg* msginvio=malloc(sizeof(msg));
@@ -45,8 +46,6 @@ void game(int client1, int client2, int cont) {//il cont sono il num di game per
     msg* ricezione1=malloc(sizeof(msg));
     msg* ricezione2=malloc(sizeof(msg));
     
-
-    //alloco memoria condivisa
     int shfd = shm_open("/shmname", O_RDWR|O_CREAT, 0666);
     if (shfd<0)
         handle_error("shm");
@@ -59,7 +58,6 @@ void game(int client1, int client2, int cont) {//il cont sono il num di game per
     if (shmem == MAP_FAILED)
         handle_error("mmap");
         
-    
     strcpy(msginvio->payload,"entrambi i giocatori connessi\n");
 
     
@@ -69,11 +67,12 @@ void game(int client1, int client2, int cont) {//il cont sono il num di game per
     ret = send(client2, msginvio, sizeof(msg), 0);
     if(ret<0) handle_error("errore send 1, clinet 2");
 
+    //waiting for players to be ready
     *shmem=1;
-    pid=fork();//aspetto che i giocatori siano pronti
+    pid=fork();
     if(pid<0)
         handle_error("errore nella fork");
-    if(pid==0){//figlio
+    if(pid==0){
         ret=recv(client1,ricezione1,sizeof(msg),0);
         if(ret<0) handle_error("FIGLIO: errore recv 1, clinet 1");
         if((ricezione1->flagReady)==1) fprintf(stderr, "CONN %d, game: FIGLIO: client 1 pronto\n",cont);
@@ -94,42 +93,93 @@ void game(int client1, int client2, int cont) {//il cont sono il num di game per
     if(flagready && *shmem)
         msginvio->flagReady=1;
     else handle_error("fine game");
+
+
+    //both players ready
     strcpy(msginvio->payload,"scrivi questa frase piu veloce del tuo avversario:\n");
     strcpy(msginvio->frase,getFrase());
     
-    //gli dico che l'altro giocatore è pronto e gli mando la frase del round 
     ret = send(client1, msginvio, sizeof(msg), 0);
     if(ret<0) handle_error("errore send 2, clinet 1");
     ret = send(client2, msginvio, sizeof(msg), 0);
     if(ret<0) handle_error("errore send 2, client 2");
 
+    //start round
+    struct timeval inizio, fine;
+    gettimeofday(&inizio, NULL);
+    double tempo_trascorso;
 
     pid=fork();
     if(pid<0){
         handle_error("fork fallita");
     }
-    if(pid==0){
 
-        ret=recv(client1,ricezione1,sizeof(msg),0);
-        if(ret<0) handle_error("errore recv 2, client 1");
-        *shmem=ricezione1->time;
-        fprintf(stderr,"CONN %d, game: FIGLIO: Il client1 ha restituito: %.3f s\n",cont,(*shmem)/1000);
+    if(pid==0){
+        
+        do{
+            ret=recv(client1,ricezione1,sizeof(msg),0);
+            if(ret<0) handle_error("errore recv 2, client 1");
+            if(strcmp (ricezione1->frase, msginvio->frase) == 0){
+
+                gettimeofday(&fine, NULL);
+                tempo_trascorso = (fine.tv_sec - inizio.tv_sec); // Secondi
+                tempo_trascorso += (fine.tv_usec - inizio.tv_usec) / 1000000.0; //micro in secondi
+                
+                strcpy(msginvio->payload,"frase corretta");
+                msginvio->time=tempo_trascorso;
+                ret = send(client1, msginvio, sizeof(msg), 0);
+                if(ret<0) handle_error("errore send 2, clinet 1");
+                
+                break;
+            
+            } else {
+
+                strcpy(msginvio->payload,"frase sbagliata");
+                ret = send(client1, msginvio, sizeof(msg), 0);
+                if(ret<0) handle_error("errore send 2, clinet 1");
+            }
+        }while(1);
+
+        *shmem=tempo_trascorso;
+        fprintf(stderr,"CONN %d, game: FIGLIO: Il client1 ci ha messo: %.3f s\n",cont,(*shmem));
         exit(EXIT_SUCCESS);
     }
     else{
-        ret=recv(client2,ricezione2,sizeof(msg),0);
-        if(ret<0) handle_error("errore recv 2, client 2");
-        fprintf(stderr,"CONN %d, game: PADRE: Il client2 ha restituito: %.3f s\n",cont, ricezione2->time/1000);
+
+        do{
+            ret=recv(client2,ricezione2,sizeof(msg),0);
+            if(ret<0) handle_error("errore recv 2, client 1");
+            if(strcmp (ricezione2->frase, msginvio->frase) == 0){
+
+                gettimeofday(&fine, NULL);
+                tempo_trascorso = (fine.tv_sec - inizio.tv_sec); // Secondi
+                tempo_trascorso += (fine.tv_usec - inizio.tv_usec) / 1000000.0; //micro in secondi
+                
+                strcpy(msginvio2->payload,"frase corretta");
+                msginvio2->time=tempo_trascorso;
+                ret = send(client2, msginvio2, sizeof(msg), 0);
+                if(ret<0) handle_error("errore send 2, clinet 1");
+                
+                break;
+            
+            } else {
+
+                strcpy(msginvio2->payload,"frase sbagliata");
+                ret = send(client2, msginvio2, sizeof(msg), 0);
+                if(ret<0) handle_error("errore send 2, clinet 1");
+            }
+        }while(1);
+        fprintf(stderr,"CONN %d, game: PADRE: Il client2 ci ha messo: %.3f s\n",cont, tempo_trascorso);
         wait(NULL);
-        
+
     }
     double t1=(*shmem);
     
-    //do a ogni giocatore il tempo dell'altro e mando chi a vinto
     msginvio2->time=t1;
-    msginvio->time=ricezione2->time;
+    msginvio->time=tempo_trascorso;
 
-    if(t1<ricezione2->time){
+    //winner
+    if(t1<tempo_trascorso){
         strcpy(msginvio->payload,"hai vinto!\n");
         strcpy(msginvio2->payload,"hai perso\n");
     
@@ -137,20 +187,20 @@ void game(int client1, int client2, int cont) {//il cont sono il num di game per
         strcpy(msginvio->payload,"hai perso\n");
         strcpy(msginvio2->payload,"hai vinto!\n");
     }
-        
-    //invio il vincitore
     ret = send(client1, msginvio, sizeof(msg), 0);
     if(ret<0) handle_error("errore send 3, client 1");
     ret = send(client2, msginvio2, sizeof(msg), 0);
     if(ret<0) handle_error("errore send 3, client 2");
 
-    if(t1==0 || ricezione2->time==0){
+
+    if(t1==0 || tempo_trascorso==0){
         return;
     }
 
 
-    //vogliamo fare il rematch?
-    ricezione1->flagReady=0;ricezione2->flagReady=0;
+    // rematch?
+    ricezione1->flagReady = 0;
+    ricezione2->flagReady = 0;
 
     pid=fork();
     if(pid<0)
@@ -158,11 +208,11 @@ void game(int client1, int client2, int cont) {//il cont sono il num di game per
     if(pid==0){
         ret=recv(client1,ricezione1,sizeof(msg),0);
         if(ret<0) handle_error("errore recv rematch, client 1");
-        if(ricezione1->flagReady==1)
+        if(ricezione1->flagReady == 1)
             fprintf(stderr,"CONN %d, game: FIFLIO: Il client1 vuole il rematch\n",cont);
         else
             fprintf(stderr,"CONN %d, game: FIFLIO: Il client1 NON vuole il rematch\n",cont);
-        *shmem=(double) ricezione1->flagReady;//riciclo la shm
+        *shmem=(double) ricezione1->flagReady;
         exit(EXIT_SUCCESS);
     }
     if(pid>0){
@@ -186,7 +236,7 @@ void game(int client1, int client2, int cont) {//il cont sono il num di game per
         fprintf(stderr,"CONN %d, game: faccio partire il rematch\n",cont);
 
         game(client1,client2,cont);
-    } else {//invio fine partira
+    } else {
         msginvio->flagReady=0;
         send(client1,msginvio,sizeof(msg),0);
         if(ret<0) handle_error("errore send 4, client 1");
@@ -260,7 +310,7 @@ int main(int argc, char* argv[]) {
             handle_error("errore accept primo client");        
         fprintf(stderr, "CONN %d, connessione 1 accetta\n",cont);
     
-        //scambi di inzializzazione connessione
+        // connection initializer 1
         connection_handler(client_desc1);
 
         fprintf(stderr,"CONN %d, aspetto il secondo client...\n",cont);
@@ -269,6 +319,7 @@ int main(int argc, char* argv[]) {
             handle_error("errore accept secondo client");
         fprintf(stderr, "CONN %d, connessione 2 accetta\n",cont);
         
+        // connection initializer 2
         connection_handler(client_desc2);
 
         pid_t pid=fork();

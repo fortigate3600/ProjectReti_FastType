@@ -6,12 +6,11 @@
 #include <arpa/inet.h> 
 #include <netinet/in.h>
 #include <sys/socket.h>
-#include <sys/time.h>
 
 #include "common.h"
 
 int main(int argc, char* argv[]) {
-    int ret, game=1;
+    int ret, game = 1;
 
     int socket_desc;
     struct sockaddr_in server_addr = {0};
@@ -40,13 +39,16 @@ int main(int argc, char* argv[]) {
 
     fprintf(stderr,"aspettiamo si connetti l'altro giocatore\n");
 
+
+
+
     // GAME
     do{
         
         ret = recv(socket_desc, ricezione, sizeof(msg), 0);
         if (ret < 0)
             handle_error("errore recv 2");
-        fprintf(stderr,"%s", ricezione->payload);//entrambi i giocatori connessi
+        fprintf(stderr,"%s", ricezione->payload);//both player connected
 
 
         char input[300];
@@ -57,21 +59,18 @@ int main(int argc, char* argv[]) {
         fprintf(stderr,"aspettiamo l'altro giocatore sia pronto\n");
 
 
-        invio->flagReady=0;
-        if(strcmp(input,"y\n")==0)
-            invio->flagReady=1;
+        invio->flagReady = 0;
+        if(strcmp(input,"y\n") == 0)
+            invio->flagReady = 1;
 
-        ret=send(socket_desc, invio, sizeof(msg), 0);//mando che sono pronto
+        ret = send(socket_desc, invio, sizeof(msg), 0);//send that i'm ready to play
         if (ret < 0)
             handle_error("errore send 1");
 
 
-    
-        ret = recv(socket_desc, ricezione, sizeof(msg), 0);//frase da scrivere e entrambi i giocatori pronti
+        ret = recv(socket_desc, ricezione, sizeof(msg), 0);//other player ready?
         if (ret < 0)
             handle_error("errore recv 3");
-
-
         if(ricezione->flagReady)
             fprintf(stderr,"avversario pronto\n");
         else {
@@ -81,47 +80,46 @@ int main(int argc, char* argv[]) {
 
 
 
+
+        //sentence typing
         fprintf(stderr,"%s%s", ricezione->payload,ricezione->frase);
         fprintf(stderr,"3\n");sleep(1);
         fprintf(stderr,"2\n");sleep(1);
         fprintf(stderr,"1\n");sleep(1);
         fprintf(stderr,"VIA!!!\n");
         
-
-
-        struct timeval inizio, fine;
-        gettimeofday(&inizio, NULL);
-
         int firstTry=1;
         do{
             if(!firstTry) fprintf(stderr,"frase sbagliata ritenta, veloce!\n");
-            fgets(input, sizeof(input), stdin);
             firstTry=0;
+
+            fgets(input, sizeof(input), stdin);
+            
+            strcpy(invio->frase,input);//is the sentence correct?
+            ret = send(socket_desc, invio, sizeof(msg), 0);
+            if (ret < 0)
+                handle_error("errore send");
+
+            ret = recv(socket_desc, ricezione, sizeof(msg), 0);
+            if (ret < 0)
+                handle_error("errore send");
+            
         }
-        while(strcmp(input,ricezione->frase));
+        while(strcmp(ricezione->payload,"frase corretta"));//if not tray again
+
+
+
         fprintf(stderr,"frase corretta\n");
-
-        gettimeofday(&fine, NULL);
-        double tempo_trascorso = (fine.tv_sec - inizio.tv_sec); // Secondi
-        tempo_trascorso += (fine.tv_usec - inizio.tv_usec) / 1000000.0; //micro in secondi
-        tempo_trascorso*=1000;//in ms
-
-        fprintf(stderr,"ci hai messo: %.3f s\n",tempo_trascorso/1000);
-        invio->time=tempo_trascorso;
-
-        fprintf(stderr,"aspettiamo che il tuo avversario finisca\n");
-
-        ret=send(socket_desc, invio, sizeof(msg), 0);
-        if (ret < 0)
-            handle_error("errore send 2");
-
-        //chi ha vinto?
+        fprintf(stderr,"ci hai messo: %.3f s\n",ricezione->time);
+        ricezione->time = 0;
+        
+        //winner?
         ret = recv(socket_desc, ricezione, sizeof(msg), 0);
         if (ret < 0)
             handle_error("errore recv 4");
         
-        if(ricezione->time!=0)
-            fprintf(stderr,"l'altro giocatore ci ha messo %.3f s\n", ricezione->time/1000);
+        if(ricezione->time != 0)
+            fprintf(stderr,"l'altro giocatore ci ha messo %.3f s\n", ricezione->time);
         else{
             fprintf(stderr,"l'altro giocatore non ha finito la frase\n");
             break;
@@ -129,6 +127,7 @@ int main(int argc, char* argv[]) {
         fprintf(stderr,"%s", ricezione->payload);
 
 
+        //remtach
         fprintf(stderr,"vuoi il rematch? scrivi y\n");
         fgets(input, sizeof(input), stdin); 
 
@@ -141,9 +140,9 @@ int main(int argc, char* argv[]) {
         if (ret < 0)
             handle_error("errore send 3");
             
-        if(invio->flagReady==0){//se non voglio giocare non mi interessa cosa vuole fare l'altro
+        if(invio->flagReady==0){
             game=0;
-        } else {//voglio giocare aspetto risposta avversario
+        } else {
             fprintf(stderr,"aspettando risposta dall'avversario\n");
             ret = recv(socket_desc, ricezione, sizeof(msg), 0);
             if (ret < 0)
