@@ -1,6 +1,7 @@
 # FAST TYPE
 
-The server accepts pairs of clients (max 5 couple) and initializes the connection with a connection_handler(client). When both clients are ready and it puts them into a game: game(client1, client2).
+The server accepts pairs of clients (max 5 couple) and initializes the connection with a connection_handler(client). 
+When both clients are ready and it puts them into a game: game(client1, client2).
 
 The data exchange between client and server occurs through the following msg structure:
 
@@ -19,16 +20,28 @@ The child's response is sent to the parent via shared memory;
 
 if both clients are ready, the child sends the phrase. Two separate processes handle the two clients simultaneously.
 
-The client receives the phrase and verifies it. If it is correct, the client sends an "ok" message and saves the reception time. If it is incorrect, the client is asked to rewrite it.
+The client receives the phrase and verifies it. 
+If it is correct, the client sends an "ok" message and saves the reception time. 
+If it is incorrect, the client is asked to rewrite it.
 
-Once both clients have finished sending the correct phrase, the times are compared to determine the winner. The result is sent to both clients.
+Once both clients have finished sending the correct phrase, the times are compared to determine the winner. 
+The result is sent to both clients.
 
 The server asks both clients if they want to play again. If both agree, the game function is called again.
 
-tp compiling: make
+to compile:
+```
+make
+```
 
-to run the server: ./server
+Run the server: 
+```
+./server
+```
 
-to run the clients do n times: ./clinet
+Run the clients do n times: 
+```
+./client
+```
 
 ![architettura](architettura.png)
