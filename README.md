@@ -27,4 +27,6 @@ tp compiling: make
 
 to run the server: ./server
 
+[architettura](archietettura.png)
+
 to run the clients do n times: ./clinet
