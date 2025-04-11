@@ -1,5 +1,5 @@
 # FAST TYPE
-## for my course of "Reti" in La Sapienza
+## For my course of "Reti" in La Sapienza
 
 The server accepts pairs of clients (max 5 couple) and initializes the connection with a connection_handler(client). 
 When both clients are ready and it puts them into a game: game(client1, client2).
